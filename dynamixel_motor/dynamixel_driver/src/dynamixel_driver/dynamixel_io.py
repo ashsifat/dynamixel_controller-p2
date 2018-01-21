@@ -221,12 +221,12 @@ class DynamixelIO(object):
         try:
             data.extend(self.ser.read(7))
 	    #if not data[5] : data.extend(self.ser.read(3))
-	    print "1st response:", data
+	    #print "1st response:", data
             if not data[0:3] == ['\xff', '\xff','\xfd']: raise Exception('Wrong packet prefix %s' % data[0:3])
 	    data.extend(self.ser.read(ord(data[5])))
             data = array('B', ''.join(data)).tolist() # [int(b2a_hex(byte), 16) for byte in data]
 	    #print "reading response"
-	    print "response data", data
+	    #print "response data", data
         except Exception, e:
             raise DroppedPacketError('Invalid response received from motor %d. %s' % (servo_id, e))
 
@@ -271,7 +271,7 @@ class DynamixelIO(object):
 	CRC_H = (CRC>>8) & 0xFF
 	packet.append(CRC_L)
 	packet.append(CRC_H)
-	print "read instruction", packet
+	#print "read instruction", packet
 	#print "ash"
         packetStr = array('B', packet).tostring() # same as: packetStr = ''.join([chr(byte) for byte in packet])
 
@@ -285,6 +285,7 @@ class DynamixelIO(object):
 
             # read response
             data = self.__read_response(servo_id)
+	    timestamp = time.time()
             data.append(timestamp)
 
         return data
@@ -313,15 +314,19 @@ class DynamixelIO(object):
 	packet.extend(address)
         packet.extend(data)
         #packet.append(checksum)
-	np.array(packet,dtype="uint8")
+	np.array(packet,dtype="int8")
 	CRC= self.update_crc(0,packet,5+length)
 	#packet.append(CRC)
 	CRC_L = CRC & 0xFF
 	CRC_H = (CRC>>8) & 0xFF
 	packet.append(CRC_L)
 	packet.append(CRC_H)
-	print "write_data inst", packet
-        packetStr = array('B', packet).tostring() # packetStr = ''.join([chr(byte) for byte in packet])
+	#print "write_data inst", packet
+	if packet[8] == DXL_GOAL_CURRENT :
+        	packetStr = array('B', packet).tostring() # packetStr = ''.join([chr(byte) for byte in packet])
+	else :
+		packetStr = array('B', packet).tostring() # same as: packetStr = ''.join([chr(byte) for byte in packet])
+
 
         with self.serial_mutex:
             self.__write_serial(packetStr)
@@ -329,6 +334,10 @@ class DynamixelIO(object):
 
             # wait for response packet from the motor
             timestamp = time.time()
+	    
+	    #packet.append(timestamp)
+	    #print timestamp
+		
 	    #if (packet [8]== DXL_TORQUE_ENABLE or  packet [8]==DXL_OPERATING_MODE): 
 #	    if packet [8]==DXL_OPERATING_MODE:
 #            	#time.sleep(0.00235)
