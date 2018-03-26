@@ -51,6 +51,7 @@ from array import array
 from binascii import b2a_hex
 from threading import Lock
 from dynamixel_const import *
+#from timeit import timeit
 
 #import os
 #if os.name == 'nt':
@@ -104,9 +105,11 @@ class DynamixelIO(object):
         try:
             self.serial_mutex = Lock()
             self.ser = None
-            self.ser = serial.Serial(port, baudrate, timeout=0.015)
+            self.ser = serial.Serial(port, baudrate, timeout=0.0005)
             self.port_name = port
             self.readback_echo = readback_echo
+	    self.data = []
+	    np.array(self.data,dtype="uint8")
         except SerialOpenError:
            raise SerialOpenError(port, baudrate)
 
@@ -216,31 +219,33 @@ class DynamixelIO(object):
             self.ser.read(len(data))
 
     def __read_response(self, servo_id):
-        data = []
-
+        #data = []
+	#t0=time.time()
+	del self.data[:]
         try:
-            data.extend(self.ser.read(7))
+            self.data.extend(self.ser.read(7))
 	    #if not data[5] : data.extend(self.ser.read(3))
 	    #print "1st response:", data
-            if not data[0:3] == ['\xff', '\xff','\xfd']: raise Exception('Wrong packet prefix %s' % data[0:3])
-	    data.extend(self.ser.read(ord(data[5])))
-            data = array('B', ''.join(data)).tolist() # [int(b2a_hex(byte), 16) for byte in data]
+            if not (self.data[0:3] == ['\xff', '\xff','\xfd']): raise Exception('Wrong packet prefix %s' % self.data[0:3])
+	    self.data.extend(self.ser.read(ord(self.data[5])))
+            self.data = array('B', ''.join(self.data)).tolist() # [int(b2a_hex(byte), 16) for byte in data]
 	    #print "reading response"
 	    #print "response data", data
         except Exception, e:
             raise DroppedPacketError('Invalid response received from motor %d. %s' % (servo_id, e))
 
         # verify checksum
-        checksum = (data[0:-2])
+        checksum = (self.data[0:-2])
 	np.array(checksum,dtype="uint8")
         #print "for checksum data", checksum
 	CRC= self.update_crc(0,checksum,len(checksum))
 	#packet.append(CRC)
 	CRC_L = CRC & 0xFF
 	CRC_H = (CRC>>8) & 0xFF
-        if not CRC_H == data[-1]: raise ChecksumError(servo_id, data, CRC_H)
-
-        return data
+        if not ( CRC_H == self.data[-1]): raise ChecksumError(servo_id, self.data, CRC_H)
+	#timestamp = time.time()
+	#print "read_spent_time", timestamp-t0
+        return self.data
 
     def read(self, servo_id, address, size):
         """ Read "size" bytes of data from servo with "servo_id" starting at the
@@ -251,7 +256,7 @@ class DynamixelIO(object):
         like:
             read(1, DXL_GOAL_POSITION_L, 2)
         """
-	
+	del self.data[:]
         # Number of bytes following standard header (0xFF, 0xFF, id, length)
         length = 0x07  # instruction, address(2), size(2), CRC(2)
 	#length_h= 0x00
@@ -274,21 +279,22 @@ class DynamixelIO(object):
 	#print "read instruction", packet
 	#print "ash"
         packetStr = array('B', packet).tostring() # same as: packetStr = ''.join([chr(byte) for byte in packet])
-
+	
         with self.serial_mutex:
             self.__write_serial(packetStr)
 	    #print "read instruction sent"
-
+	    
             # wait for response packet from the motor
             timestamp = time.time()
-            time.sleep(0.0013)#0.00235)
-
+            time.sleep(0.0013)#0.00235)0.0013
+	    #t0=time.time()	
             # read response
-            data = self.__read_response(servo_id)
-	    timestamp = time.time()
-            data.append(timestamp)
-
-        return data
+            #data = self.__read_response(servo_id)
+	    self.data.extend(self.ser.read(22))
+	    self.data = array('B', ''.join(self.data)).tolist() # [int(b2a_hex(byte), 16) for byte in data]
+            #data.append(timestamp)
+	    #print "read_spent_time", timestamp-t0
+        return self.data
 
     def write(self, servo_id, address, data):
         """ Write the values from the "data" list to the servo with "servo_id"
@@ -353,6 +359,61 @@ class DynamixelIO(object):
 
         return data
 
+    def sync_read(self, address, data):
+        """ Use Broadcast message to send multiple servos instructions at the
+        same time. No "status packet" will be returned from any servos.
+        "address" is an integer between 0 and 49. It is recommended to use the
+        constants in module dynamixel_const for readability. "data" is a tuple of
+        tuples. Each tuple in "data" must contain the servo id followed by the
+        data that should be written from the starting address. The amount of
+        data can be as long as needed.
+
+        To set servo with id 1 to position 276 and servo with id 2 to position
+        550, the method should be called like:
+            sync_write(DXL_GOAL_POSITION_L, ( (1, 20, 1), (2 ,38, 2) ))
+        """
+        # Calculate length and sum of all data
+        #flattened = [value for servo in data for value in servo]
+
+        # Number of bytes following standard header (0xFF, 0xFF, id, length) plus data
+        #length = 4 + len(flattened)
+	length = 5 + len(data)
+
+#        checksum = 255 - ((DXL_BROADCAST + length + \
+#                          DXL_SYNC_WRITE + address + len(data[0][1:]) + \
+#                          sum(flattened)) % 256)
+
+        # packet: FF  FF  ID LENGTH INSTRUCTION PARAM_1 ... CHECKSUM
+        #packet = [0xFF, 0xFF, 0xFD, 0x00, DXL_BROADCAST, length, DXL_SYNC_WRITE, address, len(data[0][1:])]
+	packet = [0xFF, 0xFF, 0xFD, 0x00, DXL_BROADCAST, length, 0x00, DXL_SYNC_READ]
+	packet.extend(address)
+	packet.extend(data)
+	print packet
+        np.array(packet,dtype="uint8")
+	CRC= self.update_crc(0,packet,5+length)
+	#packet.append(CRC)
+	CRC_L = CRC & 0xFF
+	CRC_H = (CRC>>8) & 0xFF
+	packet.append(CRC_L)
+	packet.append(CRC_H)
+	print "sync_read inst", packet
+        packetStr = array('B', packet).tostring() # packetStr = ''.join([chr(byte) for byte in packet])
+
+        with self.serial_mutex:
+            self.__write_serial(packetStr)
+	    #print "sending sync_read instruction"
+	
+#	    timestamp = time.time()
+            time.sleep(0.0013)#0.00235)
+
+            # read response
+	    #for i=1: len(data)-7
+	    servo_id=99
+            data = self.__read_response(servo_id)
+	    timestamp = time.time()
+            data.append(timestamp)
+	    
+
     def sync_write(self, address, data):
         """ Use Broadcast message to send multiple servos instructions at the
         same time. No "status packet" will be returned from any servos.
@@ -382,7 +443,7 @@ class DynamixelIO(object):
 	packet = [0xFF, 0xFF, 0xFD, 0x00, DXL_BROADCAST, length, 0x00, DXL_SYNC_WRITE]
 	packet.extend(address)
 	packet.extend(data)
-	print packet
+	#print packet
         np.array(packet,dtype="uint8")
 	CRC= self.update_crc(0,packet,5+length)
 	#packet.append(CRC)
@@ -390,12 +451,12 @@ class DynamixelIO(object):
 	CRC_H = (CRC>>8) & 0xFF
 	packet.append(CRC_L)
 	packet.append(CRC_H)
-	print "sync_write inst", packet
+	#print "sync_write inst", packet
         packetStr = array('B', packet).tostring() # packetStr = ''.join([chr(byte) for byte in packet])
 
         with self.serial_mutex:
             self.__write_serial(packetStr)
-	    print "sending sync_write instruction"
+	    #print "sending sync_write instruction"
 
     def ping(self, servo_id):
         """ Ping the servo with "servo_id". This causes the servo to return a

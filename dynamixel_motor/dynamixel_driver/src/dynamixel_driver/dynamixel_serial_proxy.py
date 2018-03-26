@@ -68,7 +68,7 @@ class SerialProxy():
     def __init__(self,
                  port_name='/dev/ttyUSB0',
                  port_namespace='ttyUSB0',
-                 baud_rate='1000000',
+                 baud_rate='3000000',
                  min_motor_id=1,
                  max_motor_id=25,
                  update_rate=5,
@@ -238,12 +238,12 @@ class SerialProxy():
 #	print "set op 2 response", opset2
 #	time.sleep(3) 
 
-#	torque_response= self.dxl_io.set_torque_enabled(2,1)
-#	print "torque enable2 response", torque_response
-#	time.sleep(1) 
-#	torque_response= self.dxl_io.set_torque_enabled(1,1)
-#	print "torque enable1 response", torque_response
-#	time.sleep(1) 
+	torque_response= self.dxl_io.set_torque_enabled(2,1)
+	print "torque enable2 response", torque_response
+	time.sleep(1) 
+	torque_response= self.dxl_io.set_torque_enabled(1,1)
+	print "torque enable1 response", torque_response
+	time.sleep(1) 
 	
 #	write_address= [0x74, 0x00]
 #	write_data = [0xAA, 0x02, 0x00, 0x00 ]
@@ -252,58 +252,70 @@ class SerialProxy():
 
 	# write current goal to motor 1
 #	write_address= [0x66, 0x00]
-#	val = 0
-#	nbits = 16
+	val = 0
+	nbits = 32
+	i=0
 #	write_data_whole= self.twos_complement(val, nbits)
 #	write_data_L=write_data_whole & 0xFF
 #	write_data_H = (write_data_whole>>8) & 0xFF
 #	write_data = [write_data_L, write_data_H ]
 #	#write_response = self.dxl_io.write(1,write_address, write_data)
 #	#print "write done, response:", write_response
-#	last_time=time.time()
+	last_time=time.time()
 #	write_=[]
 #	read_1=[]
 #	read_2=[]
 #	write_time=[]
 #	read_time1=[]
 #	read_time2=[]
-#	sync_write_address= [0x66, 0x00]
+#	sync_write_address= [0x66, 0x00]		#current
+    	sync_write_address= [0x74, 0x00]		#position
 
 #	
-#	while not rospy.is_shutdown() :
-#		current_time =time.time()
-#		val=20*math.sin(3.1416*current_time)
-#		val1=int(round(val))
-#		val2=-val1;
-#		write_.append(val1)
-#		write_data_whole1= self.twos_complement(val1, nbits)
-#		write_data_L1=write_data_whole1 & 0xFF
+	while not rospy.is_shutdown() :
+		current_time =time.time()
+		val=20*math.sin(3.1416*current_time)
+		val1=int(round(val))
+		val2=-val1;
+		#write_.append(val1)
+		write_data_whole1= self.twos_complement(val1, nbits)
+#		write_data_L1 = write_data_whole1 & 0xFF
 #		write_data_H1 = (write_data_whole1>>8) & 0xFF
-#		#for motor2 value
-#		write_data_whole2= self.twos_complement(val2, nbits)
+		write_data_11 = write_data_whole1 & 0xFF
+		write_data_21 = (write_data_whole1>>8) & 0xFF
+		write_data_31 = (write_data_whole1>>8) & 0xFF
+		write_data_41 = (write_data_whole1>>8) & 0xFF
+		#for motor2 value
+		write_data_whole2 = self.twos_complement(val2, nbits)
 #		write_data_L2=write_data_whole2 & 0xFF
 #		write_data_H2 = (write_data_whole2>>8) & 0xFF
-#		#write_data = [write_data_L, write_data_H ]
-#		#write_response = self.dxl_io.write(1,write_address, write_data)
+		write_data_12 = write_data_whole2 & 0xFF
+		write_data_22 = (write_data_whole2>>8) & 0xFF
+		write_data_32 = (write_data_whole2>>8) & 0xFF
+		write_data_42 = (write_data_whole2>>8) & 0xFF
+		#write_data = [write_data_L, write_data_H ]
+		#write_response = dxl_io.write(1,write_address, write_data)
 #		sync_write_data = [0x02, 0x00, 0x01, write_data_L1, write_data_H1, 0x02, write_data_L2, write_data_H2]
-#		self.dxl_io.sync_write(sync_write_address, sync_write_data)
+#		dxl_io.sync_write(sync_write_address, sync_write_data)
 #		print "sync_write done, current control"
+		# set goal position on multiple motors
+		sync_write_data = [0x04, 0x00, 0x01, write_data_11, write_data_21, write_data_31, write_data_41, 0x02, write_data_12,write_data_22, write_data_32, write_data_42 ]
+		self.dxl_io.sync_write(sync_write_address, sync_write_data)
+		print "sync_write done, position control"
+		i=i+1
 #		write_time.append(time.time())
 #		#print "write done, response:", write_response
-#		read_response=self.dxl_io.read(1,DXL_PRESENT_CURRENT,2)
-#		read_val1= read_response[9] |  (read_response[10] << 8)
-#		read_val=self.twos_complement(read_val1, nbits)
-#		read_1.append(read_val)
-#		read_time1.append(read_response[13])
-#		read_response=self.dxl_io.read(2,DXL_PRESENT_CURRENT,2)
-#		read_val2= read_response[9] |  (read_response[10] << 8)
-#		read_val=self.twos_complement(read_val2, nbits)
-#		read_2.append(read_val)
-#		read_time2.append(read_response[13])
-#		#print "read done, response:", read_response
+#########################################################################
+		read_response=self.dxl_io.read(1,DXL_PRESENT_CURRENT,2)
+		read_val1= read_response[9] | (read_response[10] << 8)
+		read_val= self.twos_complement(read_val1, nbits)
+		print "reading motor 1 current ", read_val
 #		
-#		if  (current_time-last_time)>3:
-#			val = 0
+		if  (current_time-last_time)>10:
+			val = 0
+			sync_write_data = [0x04, 0x00, 0x01, val,val,val,val, 0x02, val,val,val,val ]
+			self.dxl_io.sync_write(sync_write_address, sync_write_data)
+			print "sync_write done, position control", i
 ##			write_data_whole= self.twos_complement(val, nbits)
 ##			write_data_L=write_data_whole & 0xFF
 ##			write_data_H = (write_data_whole>>8) & 0xFF
@@ -316,7 +328,7 @@ class SerialProxy():
 #			print "data read_time1", read_time1
 #			print "data read motor 2",  read_2
 #			print "data read_time2", read_time2
-#			break
+			break
 
 	
 	# set goal position on multiple motors
