@@ -34,8 +34,8 @@ def twos_complement(val, nbits):
     	return val
 
 if __name__ == '__main__':
-    port_name='/dev/ttyUSB0'
-    port_namespace='ttyUSB0'
+    port_name='/dev/ttyUSB1'
+    port_namespace='ttyUSB1'
     baud_rate=3000000
     min_motor_id=1
     max_motor_id=25
@@ -63,7 +63,7 @@ if __name__ == '__main__':
 		print "torque enable4 response", torque_response
 		time.sleep(1)
 		torque_response= dxl_io.set_torque_enabled(3,1)
-		print "torque enable2 response", torque_response
+		print "torque enable3 response", torque_response
 		time.sleep(1) 
                 torque_response= dxl_io.set_torque_enabled(2,1)
 		print "torque enable2 response", torque_response
@@ -89,7 +89,7 @@ if __name__ == '__main__':
 	write_data_H = (write_data_whole>>8) & 0xFF
 	write_data = [write_data_L, write_data_H ]
 	write_response = dxl_io.write(1,write_address, write_data)
-	print "write done, response:", write_response
+	print "write1 done, response:", write_response
 ###################################################################
 #	val1=val
 #	val2=-val1;
@@ -128,7 +128,7 @@ if __name__ == '__main__':
 
 	while not rospy.is_shutdown() :
 		current_time =time.time()
-		val=20*math.sin(3.1416*current_time)-20
+		val=20*math.sin(3.1416*current_time)+20
 		#val=-20
 		val=int(round(val))
 		write_data_whole= twos_complement(val, nbits)
@@ -136,37 +136,37 @@ if __name__ == '__main__':
 		write_data_H = (write_data_whole>>8) & 0xFF
 		write_data = [write_data_L, write_data_H ]
 		write_response = dxl_io.write(1,write_address, write_data)
-		print "write done, response:", write_response
+		print "write 1 done, response:", write_response
 		######write to motor 2############
-		val=20*math.sin(3.1416*current_time)+20
-		#val=20
-		val=int(round(val))
+		#val=20*math.sin(3.1416*current_time)-20
+		val=-20
+		#val=int(round(val))
 		write_data_whole= twos_complement(val, nbits)
 		write_data_L=write_data_whole & 0xFF
 		write_data_H = (write_data_whole>>8) & 0xFF
 		write_data = [write_data_L, write_data_H ]
 		write_response = dxl_io.write(2,write_address, write_data)
-		print "write done, response:", write_response
+		print "write done 2, response:", write_response
 		######write to motor 3############
-		val=5*math.sin(3.1416*current_time)-5
-		#val=-5
-		val=int(round(val))
+		#val=20*math.sin(3.1416*current_time)+20
+		val=0
+		#val=int(round(val))
 		write_data_whole= twos_complement(val, nbits)
 		write_data_L=write_data_whole & 0xFF
 		write_data_H = (write_data_whole>>8) & 0xFF
 		write_data = [write_data_L, write_data_H ]
 		write_response = dxl_io.write(3,write_address, write_data)
-		print "write done, response:", write_response
+		print "write done 3, response:", write_response
 #		########## write to motor 4 ##############
-		val=20*math.sin(3.1416*current_time)-10
-		#val=0
-		val=int(round(val))
+		#val=15*math.sin(3.1416*current_time)+10
+		val=0
+		#val=int(round(val))
 		write_data_whole= twos_complement(val, nbits)
 		write_data_L=write_data_whole & 0xFF
 		write_data_H = (write_data_whole>>8) & 0xFF
 		write_data = [write_data_L, write_data_H ]
 		write_response = dxl_io.write(4,write_address, write_data)
-		print "write done, response:", write_response
+		print "write done 4, response:", write_response
 		##############for sync write###############################################
 #		val1=int(round(val))
 #		val2=-val1;
@@ -227,7 +227,7 @@ if __name__ == '__main__':
 #		#print "read done, response:", read_response
 		##################### data collection done ########################################
 		
-		if  (current_time-last_time)>10:
+		if  (current_time-last_time)>5:
 			print "time up"
 			val = 0
 			write_data_whole= twos_complement(val, nbits)
